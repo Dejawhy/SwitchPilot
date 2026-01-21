@@ -1,0 +1,34 @@
+# Build artifacts
+build/
+dist/
+*.spec
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+env/
+venv/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Config with sensitive data (contains OBS password)
+switchpilot_config.json
+
+# Claude Code local settings
+.claude/
+
+# Misc
+*.log
+nul
