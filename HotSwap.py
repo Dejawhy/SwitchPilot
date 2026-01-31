@@ -5,8 +5,8 @@ from tkinter import messagebox, filedialog
 import win32process
 import win32api
 import win32con
-import win32event  # <--- NEW: Required for Single Instance Lock
-import winerror    # <--- NEW: Required for Single Instance Lock
+import win32event  
+import winerror    
 import psutil
 import threading
 import time
@@ -22,9 +22,8 @@ import io
 import ctypes
 from PIL import Image
 
-# ... [Keep Resource Path Helper and App Info constants exactly as they were] ...
 
-# --- Resource Path Helper (for bundled files in exe) ---
+#Resource Path Helper 
 def resource_path(relative_path):
     """Get absolute path to resource, works for dev and PyInstaller exe."""
     if getattr(sys, 'frozen', False):
@@ -34,9 +33,8 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 APP_NAME = "HotSwap"
-APP_VERSION = "1.0" # Bumped version
+APP_VERSION = "1.0" 
 
-# ... [Keep UI Configuration and Path constants exactly as they were] ...
 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("dark-blue")
@@ -100,7 +98,7 @@ def flash_window(hwnd):
     except Exception:
         pass
 
-# ... [Keep Win32 Constants] ...
+# Win32 Constants
 GWL_EXSTYLE = -20
 WS_EX_LAYERED = 0x00080000
 WS_EX_TRANSPARENT = 0x00000020
@@ -111,9 +109,7 @@ GetWindowLong = ctypes.windll.user32.GetWindowLongW
 SetWindowLong = ctypes.windll.user32.SetWindowLongW
 SetWindowDisplayAffinity = ctypes.windll.user32.SetWindowDisplayAffinity
 
-# --- UPDATED OverlayPopup Class ---
 class OverlayPopup:
-    # ... [Types same as before] ...
     TYPE_GAME_DETECTED = "game_detected"
     TYPE_FRAME_DROP = "frame_drop"
     TYPE_CAPTURE_FAILED = "capture_failed"
@@ -127,8 +123,6 @@ class OverlayPopup:
         self.logo_image = None
         self.popup_queue = []
         self._load_logo()
-        
-        # NEW: Track current message to prevent duplicates
         self.current_message = "" 
 
     def _load_logo(self):
@@ -146,7 +140,6 @@ class OverlayPopup:
             print(f"Could not load logo: {e}")
             self.logo_image = None
 
-    # NEW: Added clear_queue method
     def clear_queue(self):
         """Clears all pending popups. Use when user has taken action."""
         self.popup_queue.clear()
@@ -154,12 +147,10 @@ class OverlayPopup:
     def show(self, title, message, hotkey="F9", duration=10000, overlay_type=None):
         """Show the overlay popup, with deduplication logic."""
         
-        # --- FIX 1: DEDUPLICATION ---
-        # If the exact same message is currently showing, do nothing (don't queue it).
+        # dupelication prevention logic
         if self.popup is not None and self.current_message == message:
             return
 
-        # If the exact same message is already in the queue, do nothing.
         for item in self.popup_queue:
             if item['message'] == message:
                 return
@@ -177,9 +168,8 @@ class OverlayPopup:
             return
 
         self.overlay_type = overlay_type
-        self.current_message = message # Track what's showing
+        self.current_message = message 
 
-        # ... [Rest of show() method construction remains largely the same] ...
         self.popup = ctk.CTkToplevel(self.parent)
         self.popup.withdraw()
         self.popup.overrideredirect(True)
@@ -237,7 +227,6 @@ class OverlayPopup:
         else:
             self.auto_dismiss_id = self.popup.after(duration, self.hide)
 
-    # ... [Keep helper methods like is_frame_drop_alert, _apply_win32_flags] ...
     def is_frame_drop_alert(self):
         return self.overlay_type == self.TYPE_FRAME_DROP and self.popup is not None
 
@@ -268,7 +257,7 @@ class OverlayPopup:
             except Exception:
                 pass
             self.popup = None
-            self.current_message = "" # Reset current message
+            self.current_message = "" 
 
         if self.popup_queue:
             next_popup = self.popup_queue.pop(0)
@@ -283,7 +272,6 @@ class OverlayPopup:
             overlay_type=popup_data['overlay_type']
         )
 
-# ... [Keep ConfirmDialog and Tooltip classes exactly as they were] ...
 
 class ConfirmDialog(ctk.CTkToplevel):
     def __init__(self, parent, title, message, danger_action=False):
@@ -368,7 +356,6 @@ class Tooltip:
 
 
 class HotSwap(ctk.CTk):
-    # ... [Keep Init/Setup/UI methods exactly as they were] ...
     def __init__(self):
         super().__init__()
         self.title(f"{APP_NAME} v{APP_VERSION}")
@@ -386,8 +373,9 @@ class HotSwap(ctk.CTk):
         self.obs_client = None
         self.is_tracking = False
         self.last_injected_exe = ""
-        self.last_obs_target = ""  # Tracks the actual window target string sent to OBS
+        self.last_obs_target = ""
         self.monitors = []
+        self.monitor_var = ctk.StringVar(value="")
         self.suggested_app = None
         self.suggested_title = None
         self.suggested_class = None
@@ -412,6 +400,7 @@ class HotSwap(ctk.CTk):
         self.detection_threshold = 2.0
         self.frame_drop_threshold = 30
         self.game_detection_enabled = True
+        self.total_swaps = 0
         self.frame_drop_alerts_enabled = True
         self.disclaimer_accepted = False
         self.current_scene_collection = None
@@ -425,7 +414,6 @@ class HotSwap(ctk.CTk):
         self.default_sound_switched = resource_path("sounds/switched.wav")
 
         self.setup_ui()
-        self.detect_monitors()
         self.load_settings()
         
         threading.Thread(target=self.install_obs_script, kwargs={'silent': True}, daemon=True).start()
@@ -443,7 +431,6 @@ class HotSwap(ctk.CTk):
             self.tabs.set("Settings")
             self.after(1000, self.show_onboarding)
 
-    # ... [Copy show_onboarding, _center_toplevel, hotkey registration methods from original] ...
     def show_onboarding(self):
         guide = ctk.CTkToplevel(self)
         guide.title("Welcome to HotSwap")
@@ -499,7 +486,6 @@ class HotSwap(ctk.CTk):
         self.demo_mode = not self.demo_mode
         
         if self.demo_mode:
-            # Visual feedback: Change title and play a sound
             self.title(f"{APP_NAME} v{APP_VERSION} [DEMO MODE]")
             self._show_for_capture()
             winsound.MessageBeep(winsound.MB_ICONASTERISK)
@@ -534,9 +520,7 @@ class HotSwap(ctk.CTk):
             self.switch_track.select()
         self.toggle_tracking()
 
-    # ... [Copy setup_ui, _setup_tooltips, _setup_dashboard_tab, etc. from original] ...
-    # (Since these are very long and identical, I'm abbreviating to save space, 
-    #  but in your file, keep them exactly as they were in the original.)
+
     def setup_ui(self):
         # [Paste content of setup_ui]
         self.status_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -571,12 +555,9 @@ class HotSwap(ctk.CTk):
         self._setup_tooltips()
 
     def _setup_tooltips(self):
-        # [Paste _setup_tooltips content from original]
         Tooltip(self.btn_add_quick, "Add this game to your whitelist and start tracking it immediately.")
-        # ... (rest of tooltips)
 
     def _setup_dashboard_tab(self):
-        # [Paste _setup_dashboard_tab content from original]
         self.suggestion_frame = ctk.CTkFrame(self.tab_dash, fg_color=COLOR_ACCENT, corner_radius=8)
         ctk.CTkLabel(self.suggestion_frame, text="GAME DETECTED", text_color="white", font=FONT_HEADING).pack(pady=(SPACE_MD, SPACE_XS))
         self.lbl_suggestion = ctk.CTkLabel(self.suggestion_frame, text="", text_color="white", font=FONT_BODY)
@@ -597,10 +578,12 @@ class HotSwap(ctk.CTk):
         self.lbl_current_app.pack(pady=SPACE_XS)
         self.track_row = ctk.CTkFrame(self.ctrl_frame, fg_color="transparent")
         self.track_row.pack(pady=SPACE_MD)
-        self.switch_track = ctk.CTkSwitch(self.track_row, text="", width=60, switch_width=52, switch_height=28, command=self.toggle_tracking)
+        self.switch_track = ctk.CTkSwitch(self.track_row, text="", width=60, switch_width=52, switch_height=28, command=self.toggle_tracking, state="disabled")
         self.switch_track.pack(side="left")
-        self.lbl_track_status = ctk.CTkLabel(self.track_row, text="Tracking is OFF", font=("Segoe UI", 18, "bold"), text_color=COLOR_DANGER)
+        self.lbl_track_status = ctk.CTkLabel(self.track_row, text="Connect to OBS first", font=("Segoe UI", 18, "bold"), text_color=COLOR_MUTED)
         self.lbl_track_status.pack(side="left", padx=(SPACE_SM, 0))
+        self.lbl_swap_counter = ctk.CTkLabel(self.ctrl_frame, text="Total HotSwaps: 0", font=("Segoe UI", 14), text_color="#06B6D4")
+        self.lbl_swap_counter.pack(pady=(SPACE_XS, SPACE_MD))
         self.storage_frame = ctk.CTkFrame(self.tab_dash, fg_color=COLOR_SURFACE, corner_radius=8)
         self.storage_frame.pack(pady=SPACE_SM, padx=SPACE_MD, fill="x")
         self.lbl_path = ctk.CTkLabel(self.storage_frame, text="Recording path: Connect to OBS first", font=FONT_CAPTION, text_color=COLOR_MUTED)
@@ -612,7 +595,6 @@ class HotSwap(ctk.CTk):
         self.lbl_storage.pack(pady=(SPACE_XS, SPACE_MD))
 
     def _setup_rules_tab(self):
-        # [Paste _setup_rules_tab content]
         self.rule_tabs = ctk.CTkTabview(self.tab_rules)
         self.rule_tabs.pack(fill="both", expand=True, padx=SPACE_XS, pady=SPACE_XS)
         self.sub_whitelist = self.rule_tabs.add("Whitelist (Games)")
@@ -621,7 +603,6 @@ class HotSwap(ctk.CTk):
         self._setup_list_tab(self.sub_blacklist, "blacklist")
 
     def _setup_list_tab(self, parent, list_type):
-        # [Paste _setup_list_tab content]
         scan_frame = ctk.CTkFrame(parent, fg_color="transparent")
         scan_frame.pack(pady=SPACE_SM, padx=SPACE_SM, fill="x")
         combo_var = ctk.StringVar(value="Scan for running apps...")
@@ -642,7 +623,6 @@ class HotSwap(ctk.CTk):
             self.black_combo = combo
 
     def _setup_settings_tab(self):
-        # [Paste _setup_settings_tab content - abbreviated for brevity, but needed]
         self.scroll_settings = ctk.CTkScrollableFrame(self.tab_settings, fg_color="transparent")
         self.scroll_settings.pack(fill="both", expand=True)
         
@@ -661,11 +641,6 @@ class HotSwap(ctk.CTk):
         self.lbl_conn_status = ctk.CTkLabel(self.conn_grp, text="Disconnected, you MUST connect to OBS WebSocket for this to work.", font=FONT_SMALL, text_color=COLOR_DANGER, wraplength=400)
         self.lbl_conn_status.pack(pady=(SPACE_XS, SPACE_MD))
 
-        # ... (Include all other settings groups: OBS Integration, Source Selection, Automation, Activity Keys, Debug)
-        # For brevity in this response, I assume you have the rest of _setup_settings_tab from your original file. 
-        # Please ensure you copy it all in.
-        
-        # [Placeholder for the rest of settings setup]
         self._setup_rest_of_settings()
 
     def _setup_rest_of_settings(self):
@@ -685,16 +660,6 @@ class HotSwap(ctk.CTk):
         self.src_grp.pack(pady=SPACE_SM, padx=SPACE_SM, fill="x")
         self.lbl_src_header = ctk.CTkLabel(self.src_grp, text="OBS Source Targeting", font=FONT_HEADING)
         self.lbl_src_header.pack(pady=SPACE_MD)
-        mon_row = ctk.CTkFrame(self.src_grp, fg_color="transparent")
-        mon_row.pack(pady=SPACE_SM, fill="x", padx=SPACE_LG)
-        self.lbl_monitor = ctk.CTkLabel(mon_row, text="Monitor:", font=FONT_BODY, width=100, anchor="w")
-        self.lbl_monitor.pack(side="left")
-        self.monitor_var = ctk.StringVar(value="Select Monitor")
-        self.monitor_menu = ctk.CTkOptionMenu(mon_row, variable=self.monitor_var, values=["Scan first..."], font=FONT_BODY)
-        self.monitor_menu.pack(side="left", fill="x", expand=True)
-        self.btn_mon_refresh = ctk.CTkButton(mon_row, text="Refresh", width=70, font=FONT_BODY, command=self.detect_monitors)
-        self.btn_mon_refresh.pack(side="right", padx=(SPACE_SM, 0))
-        
         vid_row = ctk.CTkFrame(self.src_grp, fg_color="transparent")
         vid_row.pack(pady=SPACE_SM, fill="x", padx=SPACE_LG)
         self.lbl_video_source = ctk.CTkLabel(vid_row, text="Video Source:", font=FONT_BODY, width=100, anchor="w")
@@ -831,8 +796,6 @@ class HotSwap(ctk.CTk):
         slider.pack(side="right", padx=SPACE_SM, fill="x", expand=True)
         setattr(self, slider_name, slider)
 
-    # ... [Keep hotkey recording, audio, util, obs script methods exactly as they were] ...
-    # (Abbreviated, please copy from original)
     def start_hotkey_recording(self):
         self.btn_record_hotkey.configure(text="Press key...", fg_color=COLOR_WARNING)
         threading.Thread(target=self._wait_for_hotkey, daemon=True).start()
@@ -1090,6 +1053,16 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
 
         if not app_to_add: return
 
+        # Don't add blacklisted apps
+        if app_to_add in self.blacklist:
+            self.hide_suggestion()
+            return
+
+        # Debounce rapid F9 spam (within 2 seconds)
+        if time.time() - getattr(self, 'last_f9_time', 0) < 2:
+            return
+        self.last_f9_time = time.time()
+
         # 1. Update Whitelist
         if app_to_add not in self.whitelist:
             self.whitelist.append(app_to_add)
@@ -1101,24 +1074,20 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
         
         self.hide_suggestion()
         
-        # --- THE FIX: EARLY LOCK ---
-        # We tell the app "We have ALREADY switched to this game" right now.
-        # This prevents the background loop from waking up and trying to switch again.
+        # --- EARLY LOCK ---
         self.last_injected_exe = app_to_add 
         self.locked_app = None
         
-        # 2. Run OBS update in background (now safe from conflicts)
+        # 2. Run OBS update in background thread
         threading.Thread(target=self._quick_add_worker, args=(app_to_add, saved_title, saved_class), daemon=True).start()
 
     def _quick_add_worker(self, app_to_add, saved_title, saved_class):
         """WORKER PART: Updates OBS."""
-        # Get fresh info
         current_exe, current_title, current_cls, _ = self.get_window_info()
 
         target_title = current_title if (current_exe == app_to_add) else saved_title
         target_class = current_cls if (current_exe == app_to_add) else saved_class
 
-        # If we still don't have title/class, try waiting briefly and re-checking
         if not target_title or not target_class:
             time.sleep(0.5)
             current_exe, current_title, current_cls, _ = self.get_window_info()
@@ -1129,16 +1098,13 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
         if target_title and target_class:
             print(f"Quick Add worker switching to: {app_to_add}")
 
-            # Send command to OBS
+
             self.update_obs(app_to_add, target_title, target_class, is_new_switch=True)
 
-            # Update dashboard
             self.lbl_current_app.configure(text=f"{app_to_add} (Tracking)", text_color=COLOR_PRIMARY)
 
-            # Reset timer so we don't double-check too soon
             self.last_switch_time = time.time()
 
-            # Play sound last, confirming OBS accepted the command
             self._play_sound("switched")
         else:
             print(f"Quick Add worker: Could not get window info for {app_to_add}")
@@ -1162,7 +1128,6 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
             threshold = self.detection_threshold
             is_active = False
 
-            # Check if any detection key is being held down
             for key in self.detection_keys:
                 try:
                     if keyboard.is_pressed(key):
@@ -1182,7 +1147,6 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
                     
                     is_whitelisted = exe in self.whitelist
                     
-                    # FIX: "Self-Healing"
                     # If app was locked/injected but NO LONGER whitelisted, clear state.
                     was_locked = (exe == self.locked_app)
                     was_injected = (exe == self.last_injected_exe)
@@ -1195,9 +1159,8 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
                     is_blacklisted = exe in self.blacklist
                     is_temp_ignored = exe in self.temp_ignore_list
 
-                    # --- FIX 3: STRICT CHECK ---
+                    # --- STRICT CHECK ---
                     # If it's whitelisted, NEVER suggest it.
-                    # The previous issue was likely race conditions in the queue.
                     if not is_whitelisted and not is_blacklisted and not is_temp_ignored:
                         self.suggested_app = exe
                         self.suggested_title = title
@@ -1209,7 +1172,6 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
                         if current_text != exe or not is_visible:
                             self.show_suggestion(exe)
                     else:
-                        # If whitelisted, ensure suggestion is hidden
                         if self.suggestion_frame.winfo_ismapped():
                             self.hide_suggestion()
             else:
@@ -1226,7 +1188,6 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
             overlay_type=OverlayPopup.TYPE_FRAME_DROP
         )
 
-    # ... [Keep core logic methods: auto_connect, obs_events, refresh_sources, etc] ...
     def auto_connect_logic(self):
         max_retries = 3
         password = self.entry_pass.get()
@@ -1248,22 +1209,21 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
                         self.lbl_conn_status.configure(text="Incorrect password", text_color=COLOR_DANGER)
                         return
             time.sleep(1)
-        self.lbl_conn_status.configure(text="Connection refused. Is OBS Port 4455?", text_color=COLOR_DANGER)
+        self.lbl_conn_status.configure(text="Can't reach OBS. Is it open with WebSocket enabled?", text_color=COLOR_DANGER)
 
     def on_obs_event(self, event):
         try:
             if event.name == "CurrentSceneCollectionChanged":
                 self.after(2000, self.refresh_sources)
             elif event.name in ("SceneItemEnableStateChanged", "InputSettingsChanged", "CurrentProgramSceneChanged"):
-                # User manually toggled a source's eye icon, changed input settings,
-                # or switched scenes in OBS. Clear our tracking state so we re-apply
-                # the switch next time the tracking loop runs.
                 self.last_injected_exe = ""
                 self.last_obs_target = ""
         except Exception: pass
         
     def _on_connect_success(self):
         self.lbl_conn_status.configure(text="Connected", text_color=COLOR_SUCCESS)
+        self.switch_track.configure(state="normal")
+        self.lbl_track_status.configure(text="Tracking is OFF", text_color=COLOR_DANGER)
         self.refresh_sources()
         for _ in range(3):
             if self._get_obs_config(): break
@@ -1282,6 +1242,40 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
             self.lbl_current_app.configure(text="Scanning...", text_color=COLOR_PRIMARY)
             threading.Thread(target=self.tracking_loop, daemon=True).start()
 
+    def _on_obs_disconnect(self):
+        """Handle OBS disconnecting (closed, crashed, etc.)."""
+        if self.obs_client is None:
+            return  # Already disconnected, don't re-trigger
+        self.obs_client = None
+        self.is_tracking = False
+        self.switch_track.deselect()
+        self.switch_track.configure(state="disabled")
+        self.lbl_track_status.configure(text="Connect to OBS first", text_color=COLOR_MUTED)
+        self.lbl_current_app.configure(text="OBS Disconnected", text_color=COLOR_DANGER)
+        self.lbl_conn_status.configure(text="Reconnecting...", text_color=COLOR_WARNING)
+        self.lbl_alert.configure(text="SYSTEM NORMAL", text_color=COLOR_MUTED)
+        self._reset_detection_state()
+        # Start auto-reconnect in background
+        threading.Thread(target=self._auto_reconnect_loop, daemon=True).start()
+
+    def _auto_reconnect_loop(self):
+        """Periodically try to reconnect to OBS after disconnect."""
+        password = self.entry_pass.get()
+        if not password:
+            self.lbl_conn_status.configure(text="Disconnected - no password set", text_color=COLOR_DANGER)
+            return
+        hosts_to_try = ['127.0.0.1', 'localhost']
+        while self.obs_client is None:
+            time.sleep(5)
+            for host in hosts_to_try:
+                try:
+                    self.obs_client = obs.ReqClient(host=host, port=4455, password=password)
+                    self.obs_events = obs.EventClient(host=host, port=4455, password=password, callback=self.on_obs_event)
+                    self.after(0, self._on_connect_success)
+                    return
+                except Exception:
+                    continue
+
     def refresh_sources(self):
         if not self.obs_client: return
         try:
@@ -1295,29 +1289,38 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
             except Exception: pass
 
             resp = self.obs_client.get_input_list()
-            inputs = []
+            video_inputs = []
+            audio_inputs = []
             raw_list = resp.inputs if hasattr(resp, 'inputs') else resp
+            video_kinds = ("game_capture", "window_capture")
+            audio_kinds = ("wasapi_process_output_capture", "wasapi_input_capture", "wasapi_output_capture")
             for item in raw_list:
                 name = (getattr(item, 'inputName', None) or getattr(item, 'input_name', None) or item.get('inputName') or item.get('input_name'))
-                if name: inputs.append(name)
+                kind = (getattr(item, 'inputKind', None) or getattr(item, 'input_kind', None) or item.get('inputKind') or item.get('input_kind') or "")
+                if not name: continue
+                if kind in video_kinds:
+                    video_inputs.append(name)
+                if kind in audio_kinds or kind in video_kinds:
+                    audio_inputs.append(name)
 
-            if inputs:
-                self.video_source_menu.configure(values=inputs)
-                self.audio_source_menu.configure(values=inputs)
+            if video_inputs or audio_inputs:
+                self.video_source_menu.configure(values=video_inputs if video_inputs else ["No capture sources found"])
+                self.audio_source_menu.configure(values=audio_inputs if audio_inputs else ["No audio sources found"])
+                inputs = video_inputs + audio_inputs
                 if self.current_scene_collection and self.current_scene_collection in self.scene_collection_sources:
                     saved = self.scene_collection_sources[self.current_scene_collection]
                     saved_video = saved.get("video_source", "")
                     saved_audio = saved.get("audio_source", "")
-                    if saved_video in inputs: self.video_source_var.set(saved_video)
-                    elif self.video_source_var.get() not in inputs: self.video_source_var.set("Select Video Source...")
-                    if saved_audio in inputs: self.audio_source_var.set(saved_audio)
-                    elif self.audio_source_var.get() not in inputs: self.audio_source_var.set("Select Audio Source...")
+                    if saved_video in video_inputs: self.video_source_var.set(saved_video)
+                    elif self.video_source_var.get() not in video_inputs: self.video_source_var.set("Select Video Source...")
+                    if saved_audio in audio_inputs: self.audio_source_var.set(saved_audio)
+                    elif self.audio_source_var.get() not in audio_inputs: self.audio_source_var.set("Select Audio Source...")
                 else:
-                    if self.video_source_var.get() not in inputs: self.video_source_var.set("Select Video Source...")
-                    if self.audio_source_var.get() not in inputs: self.audio_source_var.set("Select Audio Source...")
+                    if self.video_source_var.get() not in video_inputs: self.video_source_var.set("Select Video Source...")
+                    if self.audio_source_var.get() not in audio_inputs: self.audio_source_var.set("Select Audio Source...")
             else:
-                self.video_source_var.set("No sources found")
-                self.audio_source_var.set("No sources found")
+                self.video_source_var.set("No capture sources found")
+                self.audio_source_var.set("No audio sources found")
         except Exception: self.video_source_var.set("Error loading sources")
 
     def _save_collection_sources(self, collection_name):
@@ -1374,19 +1377,16 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
         if not self.obs_client: return False
         
         try:
-            # 1. Get current scene info
             scene = self.obs_client.get_current_program_scene().current_program_scene_name
             items = self.obs_client.get_scene_item_list(scene).scene_items
             
-            # 2. Find the index (Z-Order) of our Game Capture source
-            # In OBS 5.0+, Index 0 is the TOP layer.
+
             target_index = 999
             for item in items:
                 if item['sourceName'] == target_source:
                     target_index = item['sceneItemIndex']
                     break
             
-            # 3. Look for any "Display Capture" that is ABOVE (lower index) and ENABLED
             for item in items:
                 # Is it above us?
                 if item['sceneItemIndex'] < target_index:
@@ -1414,7 +1414,7 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
             print(f"[DEMO MODE] Pretending to switch to: {exe_name}")
             return #
         
-        # 1. SAFETY CHECK: Is the user actually tracking?
+        # 1. SAFETY CHECK: 
         # We allow 'is_new_switch' (F9 Manual Add) to bypass this, 
         # but automatic background switches must pass this check.
         if not self.switch_track.get() and not is_new_switch:
@@ -1438,7 +1438,6 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
                     # If it's NOT a new switch (just maintenance), we back off.
                     return
 
-        # Format target for OBS
         safe_title = (window_title or "Untitled").replace(":", "#3A")
         target = f"{safe_title}:{class_name}:{exe_name}"
         
@@ -1449,6 +1448,9 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
                 current_window = current_settings.get("window", "")
 
                 if current_window != target:
+                    self.total_swaps += 1
+                    self.lbl_swap_counter.configure(text=f"Total HotSwaps: {self.total_swaps}")
+                    self.save_settings()
                     print(f"[OBS] Switching '{vid}' to: {exe_name}")
                     
                     try:
@@ -1481,27 +1483,11 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
                     self.obs_client.start_record()
 
         except Exception as e:
+            error_msg = str(e).lower()
             print(f"OBS Update Error: {e}")
-            if "scene" not in str(e).lower():
-                self.lbl_current_app.configure(text=f"OBS Error: {str(e)[:30]}", text_color=COLOR_DANGER)
-                
-
-            # --- 2. HANDLE AUDIO SOURCE ---
-            if aud and "Select" not in aud:
-                self.obs_client.set_input_settings(name=aud, settings={"window": target, "priority": 2}, overlay=True)
-                # Toggle Audio (Safe to do, doesn't cause visual blink)
-                self.obs_client.set_input_settings(name=aud, settings={"enabled": False}, overlay=True)
-                time.sleep(0.05)
-                self.obs_client.set_input_settings(name=aud, settings={"enabled": True}, overlay=True)
-
-            # --- 3. AUTO-RECORD ---
-            if self.auto_rec_var.get():
-                if not self.obs_client.get_record_status().output_active:
-                    self.obs_client.start_record()
-
-        except Exception as e:
-            print(f"OBS Update Error: {e}")
-            if "scene" not in str(e).lower():
+            if "10054" in error_msg or "10053" in error_msg or "connection" in error_msg or "closed" in error_msg or "eof" in error_msg:
+                self.after(0, self._on_obs_disconnect)
+            elif "scene" not in error_msg:
                 self.lbl_current_app.configure(text=f"OBS Error: {str(e)[:30]}", text_color=COLOR_DANGER)
 
     def _auto_fit_source(self, source_name):
@@ -1530,21 +1516,30 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
                     canvas_ar = res.base_width / res.base_height
                     source_ar = window_width / window_height
                     diff = abs(canvas_ar - source_ar)
-                    if diff > 0.1:
-                        issue_type = "Ultrawide" if source_ar > canvas_ar else "Boxy (4:3)"
+                    size_match = (window_width == res.base_width and window_height == res.base_height)
+                    if diff > 0.01 and not size_match:
+                        if diff > 0.1:
+                            issue_type = "Ultrawide" if source_ar > canvas_ar else "Boxy (4:3)"
+                        else:
+                            issue_type = f"{window_width}x{window_height} (black bars possible)"
+                        self.lbl_alert.configure(text=f"Resolution: {issue_type}", text_color=COLOR_WARNING)
                         if self.popup_notifications_enabled:
                             self.overlay.show(title="Aspect Ratio Warning", message=f"Game is {issue_type}", hotkey="", duration=6000, overlay_type=OverlayPopup.TYPE_ASPECT_RATIO)
         except Exception: pass
 
     def _validate_hook(self, source_name):
-        time.sleep(2.0)
-        try:
-            active = self.obs_client.get_source_active(source_name).video_active
-            if not active:
-                self.lbl_current_app.configure(text="Capture failed - try running as Admin", text_color=COLOR_DANGER)
-                if self.popup_notifications_enabled:
-                    self.overlay.show(title="Capture Failed", message="Try running as Administrator", hotkey="", duration=8000, overlay_type=OverlayPopup.TYPE_CAPTURE_FAILED)
-        except Exception: pass
+        # Give Game Capture more time to hook — some games take longer
+        for attempt in range(3):
+            time.sleep(2.0)
+            try:
+                if not self.obs_client: return
+                active = self.obs_client.get_source_active(source_name).video_active
+                if active: return  # Capture is working
+            except Exception: return
+        # Only warn after 3 failed checks (6 seconds total)
+        self.lbl_current_app.configure(text="Capture may have failed - try Admin?", text_color=COLOR_WARNING)
+        if self.popup_notifications_enabled:
+            self.overlay.show(title="Capture Warning", message="Game may need Administrator mode", hotkey="", duration=6000, overlay_type=OverlayPopup.TYPE_CAPTURE_FAILED)
 
     def tracking_loop(self):
         """Main tracking loop with Strict Monitor Checking."""
@@ -1554,29 +1549,14 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
             if check_counter % 10 == 0: self.check_disk_space()
             check_counter += 1
 
-            # Get info on the currently active window
-            exe, title, cls, window_monitor_handle = self.get_window_info()
-            
+            exe, title, cls, _ = self.get_window_info()
+
             if exe:
                 if exe == self.self_exe or exe == "HotSwap.exe":
                     time.sleep(1.5)
                     continue
 
-                # --- 1. STRICT MONITOR CHECK ---
-                # We identify which monitor the user wants from the dropdown
-                selected_monitor_name = self.monitor_var.get()
-                
-                # We find the specific Windows Handle (ID) for that monitor
-                target_monitor_handle = next((m['handle'] for m in self.monitors if m['name'] == selected_monitor_name), None)
-
-                # If the game is on a different monitor than the one selected, IGNORE IT.
-                if window_monitor_handle != target_monitor_handle:
-                    # Optional: Print debug info if you want to see why it's ignoring
-                    # print(f"Ignored {exe}: Wrong Monitor")
-                    time.sleep(1.5)
-                    continue
-
-                # --- 2. PERMISSION CHECKS ---
+                # --- PERMISSION CHECKS ---
                 is_whitelisted = exe in self.whitelist
                 is_blacklisted = exe in self.blacklist
                 is_temp_ignored = exe in self.temp_ignore_list
@@ -1600,18 +1580,14 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
                 
                 # --- 3. SWITCHING LOGIC ---
                 if allowed:
-                    # Check if this is a "New Switch" or just "Maintenance"
                     is_new_game = (exe != self.last_injected_exe)
                     
                     if is_new_game:
-                        # NEW GAME: We pass True to force the switch
                         self.update_obs(exe, title, cls, is_new_switch=True)
                         self.last_injected_exe = exe
-                        self._play_sound("switched")
                         self.last_switch_time = time.time()
                     else:
-                        # MAINTENANCE: We pass False. 
-                        # This allows update_obs to say "Oh, Display Capture is up? I'll do nothing."
+                        # MAINTENANCE: We pass False. This prevents switching sounds/notifications on re-detect.
                         self.update_obs(exe, title, cls, is_new_switch=False)
 
             time.sleep(1.5)
@@ -1645,7 +1621,10 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
             else:
                 self.lbl_alert.configure(text="SYSTEM NORMAL", text_color=COLOR_MUTED)
                 self.status_frame.configure(fg_color="transparent")
-        except Exception: pass
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "10054" in error_msg or "10053" in error_msg or "connection" in error_msg or "closed" in error_msg or "eof" in error_msg:
+                self.after(0, self._on_obs_disconnect)
 
     def get_window_info(self):
         try:
@@ -1700,7 +1679,7 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
         if exe_name:
             if self.last_injected_exe == exe_name: self.last_injected_exe = ""
             if self.locked_app == exe_name: self.locked_app = None
-            if self.last_injected_exe == exe_name:  # <--- ADD THIS LINE (clears the OBS target to force re-switch on re-add)
+            if self.last_injected_exe == exe_name: 
                 self.last_obs_target = ""
             if self.suggested_app == exe_name:
                 self.suggested_app = None
@@ -1808,7 +1787,6 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
         data = {
             "version": APP_VERSION,
             "password": self.entry_pass.get(),
-            "monitor": self.monitor_var.get(),
             "video_source": self.video_source_var.get(),
             "audio_source": self.audio_source_var.get(),
             "auto_record": self.auto_rec_var.get(),
@@ -1830,6 +1808,7 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
             "blacklist": self.blacklist,
             "detection_threshold": self.detection_threshold,
             "frame_drop_threshold": self.frame_drop_threshold,
+            "total_swaps": self.total_swaps,
             "window_geometry": self.geometry(),
             "is_pinned": bool(self.attributes("-topmost")),
             "scene_collection_sources": self.scene_collection_sources
@@ -1839,7 +1818,6 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
         except Exception: pass
 
     def load_settings(self):
-        # [Paste load_settings from original - logic is identical]
         if not os.path.exists(CONFIG_FILE):
             if getattr(sys, 'frozen', False): app_dir = os.path.dirname(sys.executable)
             else: app_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1851,8 +1829,6 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
         try:
             with open(CONFIG_FILE, "r") as f: data = json.load(f)
             if "password" in data: self.entry_pass.insert(0, data["password"])
-            if "monitor" in data:
-                if any(data["monitor"] in m["name"] for m in self.monitors): self.monitor_var.set(data["monitor"])
             if "video_source" in data: self.video_source_var.set(data["video_source"])
             if "audio_source" in data: self.audio_source_var.set(data["audio_source"])
             if "auto_record" in data: self.auto_rec_var.set(data["auto_record"])
@@ -1903,6 +1879,9 @@ function script_load(settings) obs.obs_frontend_add_event_callback(on_event) end
                 self.frame_drop_threshold = data["frame_drop_threshold"]
                 self.slider_drop.set(self.frame_drop_threshold)
                 self.lbl_drop_val.configure(text=f"{self.frame_drop_threshold}")
+            if "total_swaps" in data:
+                self.total_swaps = data["total_swaps"]
+                self.lbl_swap_counter.configure(text=f"Total HotSwaps: {self.total_swaps}")
             if "auto_tracking" in data and data["auto_tracking"]: self._pending_auto_tracking = True
             if "window_geometry" in data:
                 try: self.geometry(data["window_geometry"])
@@ -1953,8 +1932,6 @@ if __name__ == "__main__":
     last_error = win32api.GetLastError()
 
     if last_error == winerror.ERROR_ALREADY_EXISTS:
-        # Show alert hidden (not topmost) so it doesn't annoy if run silent, 
-        # but robust enough to inform user.
         ctypes.windll.user32.MessageBoxW(0, "HotSwap is already running!", "HotSwap", 0x40 | 0x1)
         sys.exit(0)
 
@@ -1973,3 +1950,5 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         ctypes.windll.user32.MessageBoxW(0, f"Critical Error:\n{e}\n\nCheck logs in Settings.", "HotSwap Crashed", 16)
+
+# you have reached the end of the code. there is nothing more to show traveler.
