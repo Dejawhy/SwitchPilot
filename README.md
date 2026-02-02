@@ -197,8 +197,9 @@ The keyboard library is used solely to detect if movement keys are being held to
 
 ## License
 
-MIT License - do whatever you want with it.
+GNU General Public License v3.0
 
 ## Support
 
 If this saved you from forgetting to switch scenes, consider tossing a few bucks my way. Donations keep the project going but are never required.
+
